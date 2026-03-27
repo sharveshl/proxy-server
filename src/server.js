@@ -1,37 +1,59 @@
 const http = require('http');
 const net = require('net');
-const axios = require('axios');
 
-
-const blockedSites = ['www.youtube.com', 'www.facebook.com' , 'www.twitter.com'];
+const BLOCKED_SITES = ["youtube.com", "facebook.com"];
 
 const server = http.createServer();
 
-server.on('connect', (req, clientSocket, head)=>{
+
+server.on('connect', (req, clientSocket, head) => {
+    console.log("CONNECT request:", req.url);
+
     let status = "ALLOWED";
-    for(let site of blockedSites){
-        if(req.url.includes(site)){
+
+    for (let site of BLOCKED_SITES) {
+        if (req.url.includes(site)) {
             status = "BLOCKED";
-            break;
+            console.log("Blocked:", req.url);
+            sendLog(req.url, status);
+            clientSocket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
+            clientSocket.destroy();
+            return;
         }
     }
-    if(status==="BLOCKED"){
-        console.log("Blocked",req.url);
-        clientSocket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-        clientSocket.end();
-        return;
-    }
-    console.log("Allowed",req.url);
-    const [host,port] = req.url.split(':');
-    const serverSocket = net.connect(port || 443, host, ()=>{
-        clientSocket.write("HTTP/1.1. 200 Connection established\r\n\r\n");
+
+    const [host, port] = req.url.split(':');
+
+    const serverSocket = net.connect(port || 443, host, () => {
+        clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
         serverSocket.write(head);
         serverSocket.pipe(clientSocket);
         clientSocket.pipe(serverSocket);
-    }); 
-    serverSocket.on("error", ()=> clientSocket.end());
+    });
+
+    serverSocket.on('error', (err)=>{
+        console.log("serversocket error",err.message);
+        clientSocket.destroy();
+    });
+    ckientSocket.on('error', (err)=>{
+        console.log("clientsocket error",err.message);
+        serverSocket.destroy();
+    });
+
+    sendLog(req.url, status);
 });
 
-server.listen(8080, ()=>{
-    console.log("Proxy-server is running on port 8080");
+function sendLog(url, status) {
+    const data = {
+        user: "emp1",
+        url: url,
+        status: status,
+        time: new Date().toLocaleString()
+    };
+
+    console.log("LOG:", data);
+}
+
+server.listen(8080, '0.0.0.0', () => {
+    console.log("Proxy running on port 8080");
 });
